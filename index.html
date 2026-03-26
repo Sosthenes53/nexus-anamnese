@@ -761,7 +761,7 @@
   <div class="field">
     <label class="field-label">Qual é a sua altura? <span class="field-required">*</span></label>
     <div class="input-row">
-      <input type="number" name="altura" placeholder="Ex: 169" min="100" max="230" step="1" class="input-small" id="inputAltura" oninput="validarAltura(this)">
+      <input type="text" inputmode="numeric" name="altura" placeholder="Ex: 169" class="input-small" id="inputAltura" oninput="validarAltura(this)" onblur="validarAlturaBlur(this)">
       <span style="align-self:center;color:var(--muted);font-size:0.9rem">cm</span>
     </div>
     <div id="alturaAviso" style="display:none;margin-top:6px;padding:8px 12px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.35);border-radius:8px;font-size:0.82rem;color:#c0392b;">
@@ -2061,10 +2061,14 @@
 
   // ── Validação Altura ──
   function validarAltura(el) {
-    const v = parseFloat(el.value);
+    // Remove qualquer caractere que não seja dígito
+    el.value = el.value.replace(/[^0-9]/g, '');
+    document.getElementById('alturaAviso').style.display = 'none';
+  }
+  function validarAlturaBlur(el) {
+    const v = parseInt(el.value, 10);
     const aviso = document.getElementById('alturaAviso');
-    // bloqueia decimais: se o usuário digitou ponto/vírgula (metros), limpa e avisa
-    if (el.value.includes('.') || el.value.includes(',') || (v > 0 && v < 50)) {
+    if (el.value && (v < 100 || v > 230)) {
       aviso.style.display = 'block';
       el.value = '';
     } else {
