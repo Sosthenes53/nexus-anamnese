@@ -2308,12 +2308,11 @@
   clearSubmitFeedback();
   const data = collectData();
 
-  // Usa um form POST via iframe oculto para contornar o CORS do Apps Script
   try {
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = SCRIPT_URL;
-    form.target = 'nexus_iframe';
+    form.target = 'nexus_hidden';
     form.style.display = 'none';
 
     const input = document.createElement('input');
@@ -2323,14 +2322,13 @@
     form.appendChild(input);
 
     const iframe = document.createElement('iframe');
-    iframe.name = 'nexus_iframe';
+    iframe.name = 'nexus_hidden';
     iframe.style.display = 'none';
     document.body.appendChild(iframe);
     document.body.appendChild(form);
     form.submit();
 
-    // Aguarda 3s e assume sucesso
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise(r => setTimeout(r, 3000));
 
     localStorage.removeItem(STORAGE_KEY);
     document.querySelectorAll('.section')
