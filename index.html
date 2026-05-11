@@ -2300,72 +2300,54 @@
   }
 
   async function submitForm(event) {
-    event?.preventDefault?.();
-    if (isSubmitting) return;
-    clearSubmitFeedback();
+  event?.preventDefault?.();
+  if (isSubmitting) return;
+  if (!validateSection(currentSection)) return;
+  isSubmitting = true;
+  setSubmitState(true);
+  clearSubmitFeedback();
+  const data = collectData();
 
-    // Valida a última seção antes de enviar
-    if (!validateSection(currentSection)) return;
+  // Usa um form POST via iframe oculto para contornar o CORS do Apps Script
+  try {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = SCRIPT_URL;
+    form.target = 'nexus_iframe';
+    form.style.display = 'none';
 
-    // ── CONFIGURE SUA URL AQUI ──
-    // Para Google Apps Script: https://script.google.com/macros/s/AKfycbx-KwbtOdSkk7i4gjpr87wbByvP-VdH3yVjp2yh6-X5_X6_95AYO0WBMJGNQvhFC7aj/exec
-    // Para qualquer backend REST: https://seudominio.com/api/anamnese
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx-KwbtOdSkk7i4gjpr87wbByvP-VdH3yVjp2yh6-X5_X6_95AYO0WBMJGNQvhFC7aj/exec';
-    const isLocalMode = !SCRIPT_URL || SCRIPT_URL.includes('COLE_AQUI');
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = JSON.stringify(data);
+    form.appendChild(input);
 
-    const data = collectData();
+    const iframe = document.createElement('iframe');
+    iframe.name = 'nexus_iframe';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    document.body.appendChild(form);
+    form.submit();
 
-    // Log sempre para facilitar debug / integração
-    console.group('📋 Dados da anamnese coletados');
-    console.log(JSON.stringify(data, null, 2));
-    console.groupEnd();
+    // Aguarda 3s e assume sucesso
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
-    isSubmitting = true;
-    setSubmitState(true);
+    localStorage.removeItem(STORAGE_KEY);
+    document.querySelectorAll('.section')
+      .forEach(s => s.classList.remove('active'));
+    document.getElementById('successScreen')
+      .classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    try {
-      if (!isLocalMode) {
-        // Tenta envio com CORS; em caso de erro tenta no-cors (Apps Script aceita)
-        try {
-          await trySubmitWithCors(SCRIPT_URL, data);
-        } catch (corsError) {
-          console.warn('Envio CORS falhou — tentando fallback no-cors.', corsError);
-          await trySubmitWithNoCors(SCRIPT_URL, data);
-        }
-      }
-
-      // Remove rascunho do localStorage após envio bem-sucedido
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch (storageError) {
-        console.warn('Não foi possível limpar o rascunho local.', storageError);
-      }
-
-      // Oculta todas as seções e exibe tela de sucesso
-      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-      const successScreen = document.getElementById('successScreen');
-      if (successScreen) successScreen.classList.add('show');
-
-      // Em modo local exibe aviso informativo (não de erro)
-      if (isLocalMode) {
-        showSubmitFeedback(
-          '✅ Modo local: anamnese finalizada no navegador. Para envio real, substitua a constante SCRIPT_URL pela URL do seu endpoint.',
-          'success'
-        );
-      }
-
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    } catch (error) {
-      console.error('Erro ao enviar anamnese:', error);
-      showSubmitFeedback(
-        'Não foi possível enviar agora. Verifique sua conexão e tente novamente. Seus dados estão salvos localmente.'
-      );
-    } finally {
-      isSubmitting = false;
-      setSubmitState(false);
-    }
+  } catch(err) {
+    showSubmitFeedback(
+      'Não foi possível enviar. Verifique sua conexão.'
+    );
+  } finally {
+    isSubmitting = false;
+    setSubmitState(false);
   }
+}
 
   // ── Organização dos listeners ──
   function bindNavigationEvents() {
