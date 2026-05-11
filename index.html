@@ -631,21 +631,12 @@
   <div class="field">
     <label class="field-label">Data de nascimento <span class="field-required">*</span></label>
     <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-      <input type="date" name="data_nascimento" id="data_nascimento">
+      <input type="text" name="data_nascimento" id="data_nascimento" placeholder="DD/MM/AAAA" maxlength="10" autocomplete="off" inputmode="numeric">
       <span id="idade-display" style="color:#888;font-size:0.9rem;"></span>
     </div>
   </div>
 
-  <div class="field">
-    <label class="field-label">Celular <span class="field-required">*</span></label>
-    <input type="tel" name="celular" id="celular" placeholder="(83) 9 0000-0000" maxlength="16" autocomplete="off">
-  </div>
 
-  <div class="field">
-    <label class="field-label">E-mail de contato <span class="field-required">*</span></label>
-    <input type="email" name="email_contato" id="email_contato" placeholder="seu@email.com" autocomplete="off">
-    <div class="field-error">Por favor, informe um e-mail válido.</div>
-  </div>
 
   <!-- BLOCO ENDEREÇO — pré-cadastro Feegow -->
   <div class="field" style="margin-top:1.25rem;">
@@ -2430,15 +2421,15 @@
     }
   })();
 
-  // Máscara Celular: (00) 0 0000-0000
+  // Máscara Data de Nascimento: DD/MM/AAAA
   (function() {
-    var cel = document.getElementById('celular');
-    if (!cel) return;
-    cel.addEventListener('input', function() {
-      var v = this.value.replace(/\D/g,'').slice(0,11);
-      if (v.length > 7) v = '('+v.slice(0,2)+') '+v.slice(2,3)+' '+v.slice(3,7)+'-'+v.slice(7);
-      else if (v.length > 3) v = '('+v.slice(0,2)+') '+v.slice(2);
-      else if (v.length > 0) v = '('+v;
+    var dn2 = document.getElementById('data_nascimento');
+    if (!dn2) return;
+    dn2.addEventListener('input', function() {
+      var v = this.value.replace(/\D/g,'').slice(0,8);
+      if (v.length > 4) v = v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
+      else if (v.length > 2) v = v.slice(0,2)+'/'+v.slice(2);
+      
       this.value = v;
     });
   })();
@@ -2449,9 +2440,9 @@
     var span = document.getElementById('idade-display');
     if (!dn || !span) return;
     function calcAge() {
-      if (!dn.value) { span.textContent=''; return; }
+      if (!dn.value || dn.value.length < 10) { span.textContent=''; return; }
       var hoje = new Date();
-      var nasc = new Date(dn.value + 'T12:00:00');
+      var nasc = new Date(dn.value.split('/').reverse().join('-')+'T12:00:00');
       var age = hoje.getFullYear() - nasc.getFullYear();
       var m = hoje.getMonth() - nasc.getMonth();
       if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) age--;
