@@ -1,32 +1,53 @@
 // ═══════════════════════════════════════════════════════
 // NEXUS CLIN — Automação Clínica
-// Google Apps Script v1.0
+// Google Apps Script v1.1
 // Conta de execução: nexusclinpb@gmail.com
 // ═══════════════════════════════════════════════════════
 
 // ── CONSTANTES ──────────────────────────────────────────
-const FEEGOW_TOKEN       = 'SEU_TOKEN_FEEGOW';
-const ANTHROPIC_KEY      = 'SUA_CHAVE_ANTHROPIC';
-const EMAIL_CLINICA      = 'nexusclinpb@gmail.com';
+const FEEGOW_TOKEN = 'SEU_TOKEN_FEEGOW';
+const ANTHROPIC_KEY = 'SUA_CHAVE_ANTHROPIC';
+const EMAIL_CLINICA = 'nexusclinpb@gmail.com';
 const EMAIL_PROFISSIONAL = 'sosthenes53@gmail.com';
-const CLINICA            = 'NEXUS CLIN';
-const PROFISSIONAL       = 'Sosthenes dos Santos Alves';
-const COREN              = 'COREN-PB 568176';
-const CARGO              = 'Enfermeiro de Prática Avançada';
-const CIDADE             = 'Livramento-PB';
-const TELEFONE           = '(83) 9 9858-5691';
-
+const CLINICA = 'NEXUS CLIN';
+const PROFISSIONAL = 'Sosthenes dos Santos Alves';
+const COREN = 'COREN-PB 568176';
+const CARGO = 'Enfermeiro de Prática Avançada';
+const CIDADE = 'Livramento-PB';
+const TELEFONE = '(83) 9 9858-5691';
 
 // ═══════════════════════════════════════════════════════
 // FUNÇÃO 1 — doPost(e) — WEBHOOK PRINCIPAL
+// FIX PROBLEMA 1 (CORS): aceita JSON puro OU form-data c/ campo payload
 // ═══════════════════════════════════════════════════════
 
 function doPost(e) {
   var resp = {};
 
   try {
-    var dados = JSON.parse(e.postData.contents);
-    Logger.log('📥 Payload recebido: ' + JSON.stringify(dados));
+    var dados;
+
+    // Tenta JSON direto primeiro
+    try {
+      dados = JSON.parse(e.postData.contents);
+    } catch(jsonErr) {
+      // Fallback: form data com campo "payload"
+      var payload = e.parameter.payload ||
+                    e.parameters.payload;
+      if (payload) {
+        dados = JSON.parse(
+          Array.isArray(payload) ? payload[0] : payload
+        );
+      }
+    }
+
+    if (!dados || !dados.nome) {
+      throw new Error('Payload vazio ou inválido: ' +
+        JSON.stringify(e.postData) + ' | params: ' +
+        JSON.stringify(e.parameter));
+    }
+
+    Logger.log('📥 Dados recebidos: ' + JSON.stringify(dados));
 
     Logger.log('⏳ Iniciando ETAPA 1: cadastrarNoFeegow');
     var pacienteId = cadastrarNoFeegow(dados);
@@ -48,7 +69,7 @@ function doPost(e) {
 
   } catch (err) {
     var etapa = 'desconhecida';
-    var msg   = err.message || String(err);
+    var msg = err.message || String(err);
     if (msg.indexOf('Feegow') !== -1 || msg.indexOf('paciente') !== -1) { etapa = 'cadastrarNoFeegow'; }
     else if (msg.indexOf('Claude') !== -1 || msg.indexOf('Anthropic') !== -1) { etapa = 'gerarResumoClaude'; }
     else if (msg.indexOf('PDF') !== -1 || msg.indexOf('Document') !== -1) { etapa = 'gerarPDFRequisicao'; }
@@ -62,44 +83,56 @@ function doPost(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-
 // ═══════════════════════════════════════════════════════
 // FUNÇÃO 2 — cadastrarNoFeegow(dados)
+// FIX PROBLEMA 3: log detalhado + validação de token
 // ═══════════════════════════════════════════════════════
 
 function cadastrarNoFeegow(dados) {
+  // FIX: validação do token antes de enviar
+  if (!FEEGOW_TOKEN || FEEGOW_TOKEN === 'SEU_TOKEN_FEEGOW') {
+    Logger.log('⚠️ FEEGOW_TOKEN não configurado — pulando cadastro');
+    return 'TOKEN_NAO_CONFIGURADO';
+  }
+
   var url = 'https://api.feegow.com/v1/api/pacientes/novo-paciente';
 
   var payload = {
-    nome:       dados.nome,
-    cpf:        dados.cpf.replace(/\D/g, ''),
+    nome: dados.nome,
+    cpf: dados.cpf.replace(/\D/g, ''),
     nascimento: dados.data_nascimento,
-    celular:    dados.celular.replace(/\D/g, ''),
-    email:      dados.email,
-    sexo:       dados.sexo === 'Masculino' ? 'M' : 'F',
-    cep:        dados.cep.replace(/\D/g, ''),
-    endereco:   dados.endereco,
-    cidade:     dados.cidade,
-    estado:     dados.estado
+    celular: dados.celular.replace(/\D/g, ''),
+    email: dados.email,
+    sexo: dados.sexo === 'Masculino' ? 'M' : 'F',
+    cep: dados.cep.replace(/\D/g, ''),
+    endereco: dados.endereco,
+    cidade: dados.cidade,
+    estado: dados.estado
   };
 
   var options = {
-    method:           'POST',
+    method: 'POST',
     headers: {
       'x-access-token': FEEGOW_TOKEN,
-      'Content-Type':   'application/json'
+      'Content-Type': 'application/json'
     },
-    payload:            JSON.stringify(payload),
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true,
-    timeout:            15000
+    timeout: 15000
   };
 
-  Logger.log('📤 Feegow REQUEST: ' + JSON.stringify(payload));
-  var response   = UrlFetchApp.fetch(url, options);
+  // FIX: logs detalhados para diagnóstico
+  Logger.log('📤 URL: ' + url);
+  Logger.log('📤 Token (primeiros 8): ' + FEEGOW_TOKEN.substring(0, 8) + '...');
+  Logger.log('📤 Payload: ' + JSON.stringify(payload));
+
+  var response = UrlFetchApp.fetch(url, options);
   var statusCode = response.getResponseCode();
-  var bodyText   = response.getContentText();
-  var content    = {};
-  Logger.log('📥 Feegow RESPONSE [' + statusCode + ']: ' + bodyText);
+  var bodyText = response.getContentText();
+  var content = {};
+
+  Logger.log('📥 Status: ' + statusCode);
+  Logger.log('📥 Response: ' + bodyText);
 
   try { content = JSON.parse(bodyText); } catch (e) { content = {}; }
 
@@ -111,21 +144,21 @@ function cadastrarNoFeegow(dados) {
 
   var isDuplicate = (
     statusCode === 409 ||
-    bodyText.toLowerCase().indexOf('duplicado')     !== -1 ||
+    bodyText.toLowerCase().indexOf('duplicado') !== -1 ||
     bodyText.toLowerCase().indexOf('já cadastrado') !== -1 ||
     bodyText.toLowerCase().indexOf('ja cadastrado') !== -1 ||
-    bodyText.toLowerCase().indexOf('cpf')           !== -1
+    bodyText.toLowerCase().indexOf('cpf') !== -1
   );
 
   if (isDuplicate) {
     Logger.log('⚠️ CPF já cadastrado no Feegow — extraindo paciente_id existente');
     var existingId =
-      (content.paciente_id)                      ||
+      (content.paciente_id) ||
       (content.data && content.data.paciente_id) ||
-      (content.id)                               ||
-      (content.data && content.data.id)          ||
+      (content.id) ||
+      (content.data && content.data.id) ||
       'DUPLICADO';
-    Logger.log('↩️  paciente_id existente: ' + existingId);
+    Logger.log('↩️ paciente_id existente: ' + existingId);
     return existingId;
   }
 
@@ -134,7 +167,6 @@ function cadastrarNoFeegow(dados) {
     (content.message || content.error || bodyText.substring(0, 200))
   );
 }
-
 
 // ═══════════════════════════════════════════════════════
 // FUNÇÃO 3 — gerarResumoClaude(dados)
@@ -162,7 +194,7 @@ function gerarResumoClaude(dados) {
       'protocolo na NEXUS CLIN.';
 
     var apiBody = {
-      model:      'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
       system:
         'Você é um enfermeiro de prática avançada especializado em medicina metabólica ' +
@@ -172,20 +204,20 @@ function gerarResumoClaude(dados) {
     };
 
     var options = {
-      method:           'POST',
+      method: 'POST',
       headers: {
-        'x-api-key':         ANTHROPIC_KEY,
+        'x-api-key': ANTHROPIC_KEY,
         'anthropic-version': '2023-06-01',
-        'Content-Type':      'application/json'
+        'Content-Type': 'application/json'
       },
-      payload:            JSON.stringify(apiBody),
+      payload: JSON.stringify(apiBody),
       muteHttpExceptions: true,
-      timeout:            30000
+      timeout: 30000
     };
 
-    var response   = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', options);
+    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', options);
     var statusCode = response.getResponseCode();
-    var bodyText   = response.getContentText();
+    var bodyText = response.getContentText();
     Logger.log('📥 Claude RESPONSE [' + statusCode + ']: ' + bodyText.substring(0, 300));
 
     if (statusCode === 200) {
@@ -204,15 +236,14 @@ function gerarResumoClaude(dados) {
   }
 }
 
-
 // ═══════════════════════════════════════════════════════
 // FUNÇÃO 4 — gerarPDFRequisicao(dados)
 // ═══════════════════════════════════════════════════════
 
 function gerarPDFRequisicao(dados) {
   var primeiroNome = dados.nome.split(' ')[0];
-  var docId        = null;
-  var pdfBlob      = null;
+  var docId = null;
+  var pdfBlob = null;
 
   var exames = [];
   if (dados.sexo === 'Masculino') {
@@ -231,8 +262,8 @@ function gerarPDFRequisicao(dados) {
   }
 
   var hoje = Utilities.formatDate(new Date(), 'America/Recife', 'dd/MM/yyyy');
-  var doc  = DocumentApp.create('nexus_req_temp_' + Date.now());
-  docId    = doc.getId();
+  var doc = DocumentApp.create('nexus_req_temp_' + Date.now());
+  docId = doc.getId();
   var body = doc.getBody();
 
   body.setMarginTop(56);
@@ -351,9 +382,9 @@ function gerarPDFRequisicao(dados) {
   return pdfBlob;
 }
 
-
 // ═══════════════════════════════════════════════════════
 // FUNÇÃO 5 — enviarEmails(dados, resumo, pdfBlob)
+// FIX PROBLEMA 2: e-mail interno inclui tabela com TODAS as respostas
 // ═══════════════════════════════════════════════════════
 
 function enviarEmails(dados, resumo, pdfBlob) {
@@ -421,6 +452,24 @@ function enviarEmails(dados, resumo, pdfBlob) {
     if (partes.length === 3) nascFormatado = partes[2] + '/' + partes[1] + '/' + partes[0];
   }
 
+  // FIX PROBLEMA 2: gera linhas com TODAS as respostas (exceto campos da tabela principal)
+  var linhasRespostas = '';
+  var camposIgnorar = ['timestamp', 'sexo', 'nome',
+    'cpf', 'data_nascimento', 'celular', 'email',
+    'cep', 'endereco', 'cidade', 'estado'];
+  Object.keys(dados).forEach(function(campo) {
+    if (camposIgnorar.indexOf(campo) === -1) {
+      var valor = dados[campo];
+      if (valor && String(valor).trim() !== '') {
+        linhasRespostas += '<tr>' +
+          '<td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:bold;color:#555;width:40%">' +
+          campo.replace(/_/g, ' ') + '</td>' +
+          '<td style="padding:8px 12px;border-bottom:1px solid #eee;color:#333">' + valor + '</td>' +
+          '</tr>';
+      }
+    }
+  });
+
   var htmlInterno =
     '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
     '<style>' +
@@ -435,7 +484,7 @@ function enviarEmails(dados, resumo, pdfBlob) {
     'td{padding:10px 12px;border-bottom:1px solid #eee;color:#333}' +
     'td:first-child{font-weight:bold;color:#0B1F3A;width:38%}' +
     '.btn{display:block;width:fit-content;margin:24px auto 0;background:#0B1F3A;color:#fff;' +
-         'padding:12px 28px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold}' +
+    'padding:12px 28px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold}' +
     '.ftr{background:#f5f5f5;padding:12px 24px;text-align:center;color:#999;font-size:11px;margin-top:24px}' +
     '</style></head>' +
     '<body><div class="wrap">' +
@@ -451,6 +500,10 @@ function enviarEmails(dados, resumo, pdfBlob) {
     '<tr><td>CEP</td><td>' + dados.cep + '</td></tr>' +
     '<tr><td>Objetivo principal</td><td>' + (dados.objetivo || 'Não informado') + '</td></tr>' +
     '<tr><td>Sintomas relatados</td><td>' + (dados.sint_gerais || 'Não informado') + '</td></tr>' +
+    '</table>' +
+    '<h3 style="color:#0B1F3A;margin:24px 0 12px;font-size:14px">Respostas completas da anamnese</h3>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+    linhasRespostas +
     '</table>' +
     '<a class="btn" href="https://app.feegow.com/main/?P=pacientes">Abrir paciente no Feegow →</a>' +
     '</div>' +
@@ -471,7 +524,6 @@ function enviarEmails(dados, resumo, pdfBlob) {
   }
 }
 
-
 // ═══════════════════════════════════════════════════════
 // FUNÇÃO 6 — doGet(e) — TESTE DE STATUS
 // ═══════════════════════════════════════════════════════
@@ -482,7 +534,7 @@ function doGet(e) {
     '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
     '<style>' +
     'body{font-family:Arial,sans-serif;background:#0B1F3A;display:flex;' +
-         'align-items:center;justify-content:center;min-height:100vh;margin:0}' +
+    'align-items:center;justify-content:center;min-height:100vh;margin:0}' +
     '.card{background:#fff;border-radius:12px;padding:40px 48px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3)}' +
     'h1{color:#0B1F3A;margin:0 0 8px;font-size:28px}' +
     '.gold{color:#C9A84C;font-weight:bold}' +
@@ -492,7 +544,7 @@ function doGet(e) {
     '<div class="card">' +
     '<div class="ok">✅</div>' +
     '<h1><span class="gold">NEXUS CLIN</span> — Webhook ativo</h1>' +
-    '<p>Versão 1.0 | Livramento-PB</p>' +
+    '<p>Versão 1.1 | Livramento-PB</p>' +
     '<p>Data: ' + agora + '</p>' +
     '</div></body></html>';
   return HtmlService.createHtmlOutput(html);
