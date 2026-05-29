@@ -1,29 +1,127 @@
 // ═══════════════════════════════════════════════════════
-// NEXUS CLIN — Automação Clínica
-// Google Apps Script v1.1
-// Conta de execução: nexusclinpb@gmail.com
+// NEXUS CLIN — Automação Clínica v18
+// Google Apps Script v19
 // ═══════════════════════════════════════════════════════
 
 // ── CONSTANTES ──────────────────────────────────────────
-const FEEGOW_TOKEN = 'SEU_TOKEN_FEEGOW';
-const ANTHROPIC_KEY = 'SUA_CHAVE_ANTHROPIC';
-const EMAIL_CLINICA = 'nexusclinpb@gmail.com';
+const props        = PropertiesService.getScriptProperties();
+const FEEGOW_TOKEN = props.getProperty('FEEGOW_TOKEN') || '';
+const ANTHROPIC_KEY = props.getProperty('ANTHROPIC_KEY') || '';
+const EMAIL_CLINICA      = 'nexusclinpb@gmail.com';
 const EMAIL_PROFISSIONAL = 'sosthenes53@gmail.com';
-const CLINICA = 'NEXUS CLIN';
-const PROFISSIONAL = 'Sosthenes dos Santos Alves';
-const COREN = 'COREN-PB 568176';
-const CARGO = 'Enfermeiro de Prática Avançada';
-const CIDADE = 'Livramento-PB';
-const TELEFONE = '(83) 9 9858-5691';
+const EMAIL_JULIA        = 'nutri.juliaquiteria@gmail.com';
+const CLINICA            = 'NEXUS CLIN';
+const PROFISSIONAL       = 'Sosthenes dos Santos Alves';
+const COREN              = 'COREN-PB 568176';
+const CARGO              = 'Enfermeiro de Prática Avançada';
+const CIDADE             = 'Livramento-PB';
+const TELEFONE           = '(83) 9 9858-5691';
+
+// ═══════════════════════════════════════════════════════
+// FUNÇÃO 0 — salvarNaPlanilha(dados)
+// ═══════════════════════════════════════════════════════
+function salvarNaPlanilha(dados) {
+  try {
+    var ss;
+    var spreadsheetId = PropertiesService
+      .getScriptProperties()
+      .getProperty('SPREADSHEET_ID');
+
+    if (!spreadsheetId) {
+      // Cria a planilha pela primeira vez
+      ss = SpreadsheetApp.create('NEXUS CLIN — Anamneses');
+      PropertiesService.getScriptProperties()
+        .setProperty('SPREADSHEET_ID', ss.getId());
+      Logger.log('📊 Planilha criada: ' + ss.getId());
+
+      // Compartilha com Sosthenes e Julia (só na criação)
+      try {
+        var arquivo = DriveApp.getFileById(ss.getId());
+        arquivo.addEditor('sosthenes53@gmail.com');
+        arquivo.addEditor('nutri.juliaquiteria@gmail.com');
+        Logger.log('✓ Planilha compartilhada com Sosthenes e Julia');
+      } catch (shareErr) {
+        Logger.log('⚠️ Erro ao compartilhar: ' + shareErr.message);
+      }
+
+    } else {
+      ss = SpreadsheetApp.openById(spreadsheetId);
+    }
+
+    // Aba do mês atual ex: "Mai/2026"
+    var mesAno = Utilities.formatDate(
+      new Date(), 'America/Recife', 'MMM/yyyy'
+    );
+    var aba = ss.getSheetByName(mesAno);
+
+    if (!aba) {
+      aba = ss.insertSheet(mesAno);
+
+      // Cabeçalho
+      var cabecalho = [
+        'Data/Hora', 'Nome', 'CPF', 'Nascimento',
+        'Celular', 'Email', 'Sexo', 'Cidade', 'Estado',
+        'Objetivo', 'Energia', 'Sono', 'Estresse',
+        'Sint. Gerais', 'Sint. Emocionais',
+        'Medicamentos', 'Suplementos',
+        'Pratica Exercício', 'Tipo Exercício',
+        'Horas Sono', 'Agua', 'Peso Atual', 'Altura',
+        'Comportamento Alimentar', 'Intolerância',
+        'Observações Finais', 'JSON Completo'
+      ];
+      aba.appendRow(cabecalho);
+      aba.getRange(1, 1, 1, cabecalho.length)
+        .setBackground('#0B1F3A')
+        .setFontColor('#C9A84C')
+        .setFontWeight('bold');
+      aba.setFrozenRows(1);
+    }
+
+    // Linha de dados
+    var linha = [
+      Utilities.formatDate(new Date(), 'America/Recife', 'dd/MM/yyyy HH:mm:ss'),
+      dados.nome                    || '',
+      dados.cpf                     || '',
+      dados.data_nascimento         || '',
+      dados.celular                 || '',
+      dados.email                   || '',
+      dados.sexo                    || '',
+      dados.cidade                  || '',
+      dados.estado                  || '',
+      dados.objetivo                || '',
+      dados.nivel_energia           || '',
+      dados.qualidade_sono          || '',
+      dados.nivel_estresse          || '',
+      dados.sint_gerais             || '',
+      dados.sint_emocionais         || '',
+      dados.medicamentos            || '',
+      dados.suplementos             || '',
+      dados.pratica_exercicio       || '',
+      dados.tipo_exercicio          || '',
+      dados.horas_sono              || '',
+      dados.agua                    || '',
+      dados.peso_atual              || '',
+      dados.altura                  || '',
+      dados.comportamento_alimentar || '',
+      dados.intolerancia            || '',
+      dados.observacoes_finais      || '',
+      JSON.stringify(dados)
+    ];
+
+    aba.appendRow(linha);
+    Logger.log('✓ Dados salvos na planilha — ' + dados.nome);
+
+  } catch (err) {
+    // Nunca interrompe o fluxo principal
+    Logger.log('⚠️ Erro ao salvar planilha: ' + err.message);
+  }
+}
 
 // ═══════════════════════════════════════════════════════
 // FUNÇÃO 1 — doPost(e) — WEBHOOK PRINCIPAL
-// FIX PROBLEMA 1 (CORS): aceita JSON puro OU form-data c/ campo payload
 // ═══════════════════════════════════════════════════════
-
 function doPost(e) {
   var resp = {};
-
   try {
     var dados;
 
@@ -31,51 +129,72 @@ function doPost(e) {
     try {
       dados = JSON.parse(e.postData.contents);
     } catch(jsonErr) {
-      // Fallback: form data com campo "payload"
-      var payload = e.parameter.payload ||
-                    e.parameters.payload;
+      // Fallback: form-data com campo "payload"
+      var payload = e.parameter.payload || e.parameters.payload;
       if (payload) {
-        dados = JSON.parse(
-          Array.isArray(payload) ? payload[0] : payload
-        );
+        dados = JSON.parse(Array.isArray(payload) ? payload[0] : payload);
       }
     }
 
+    // Validação básica
     if (!dados || !dados.nome) {
-      throw new Error('Payload vazio ou inválido: ' +
-        JSON.stringify(e.postData) + ' | params: ' +
-        JSON.stringify(e.parameter));
+      Logger.log('✗ Payload vazio ou inválido: ' + JSON.stringify(e.postData));
+      throw new Error('Payload inválido: nome obrigatório');
     }
 
     Logger.log('📥 Dados recebidos: ' + JSON.stringify(dados));
 
-    Logger.log('⏳ Iniciando ETAPA 1: cadastrarNoFeegow');
-    var pacienteId = cadastrarNoFeegow(dados);
-    Logger.log('✓ ETAPA 1 concluída — paciente_id: ' + pacienteId);
+    // ── ETAPA 0: Salvar na planilha (sempre primeiro) ──
+    Logger.log('⏳ Etapa 0: salvarNaPlanilha');
+    salvarNaPlanilha(dados);
+    Logger.log('✓ ETAPA 0: dados salvos na planilha');
 
-    Logger.log('⏳ Iniciando ETAPA 2: gerarResumoClaude');
-    var resumo = gerarResumoClaude(dados);
-    Logger.log('✓ ETAPA 2 concluída — resumo gerado');
+    // ── ETAPA 0b: Cadastrar no Feegow ──
+    var pacienteId = 'NAO_CADASTRADO';
+    try {
+      pacienteId = cadastrarNoFeegow(dados);
+      Logger.log('✓ ETAPA 0b: paciente_id Feegow: ' + pacienteId);
+    } catch (feegowErr) {
+      Logger.log('⚠️ ETAPA 0b: Feegow falhou (continua): ' + feegowErr.message);
+    }
 
-    Logger.log('⏳ Iniciando ETAPA 3: gerarPDFRequisicao');
-    var pdfBlob = gerarPDFRequisicao(dados);
-    Logger.log('✓ ETAPA 3 concluída — PDF gerado');
+    // ── ETAPA 1: Gerar resumo com Claude ──
+    Logger.log('⏳ Etapa 1: gerarResumoClaude');
+    var resumo;
+    try {
+      resumo = gerarResumoClaude(dados);
+    } catch (err) {
+      Logger.log('⚠️ Claude falhou — usando fallback: ' + err.message);
+      resumo = 'Olá! Estamos muito felizes em receber você na NEXUS CLIN. ' +
+               'Seu protocolo personalizado será construído com cuidado e dedicação para você.';
+    }
+    Logger.log('✓ Etapa 1 concluída');
 
-    Logger.log('⏳ Iniciando ETAPA 4: enviarEmails');
+    // ── ETAPA 2: Gerar PDF de requisição ──
+    Logger.log('⏳ Etapa 2: gerarPDFRequisicao');
+    var pdfBlob = null;
+    try {
+      pdfBlob = gerarPDFRequisicao(dados);
+      Logger.log('✓ Etapa 2 concluída');
+    } catch (err) {
+      Logger.log('⚠️ Erro ao gerar PDF (não crítico): ' + err.message);
+    }
+
+    // ── ETAPA 3: Enviar e-mails ──
+    Logger.log('⏳ Etapa 3: enviarEmails');
     enviarEmails(dados, resumo, pdfBlob);
-    Logger.log('✓ ETAPA 4 concluída — e-mails enviados');
+    Logger.log('✓ Etapa 3 concluída');
 
-    resp = { success: true, paciente_id: pacienteId, emails_enviados: true };
+    resp = {
+      success: true,
+      emails_enviados: true,
+      paciente: dados.nome
+    };
 
   } catch (err) {
-    var etapa = 'desconhecida';
     var msg = err.message || String(err);
-    if (msg.indexOf('Feegow') !== -1 || msg.indexOf('paciente') !== -1) { etapa = 'cadastrarNoFeegow'; }
-    else if (msg.indexOf('Claude') !== -1 || msg.indexOf('Anthropic') !== -1) { etapa = 'gerarResumoClaude'; }
-    else if (msg.indexOf('PDF') !== -1 || msg.indexOf('Document') !== -1) { etapa = 'gerarPDFRequisicao'; }
-    else if (msg.indexOf('mail') !== -1 || msg.indexOf('Email') !== -1) { etapa = 'enviarEmails'; }
-    Logger.log('✗ ERRO na etapa "' + etapa + '": ' + msg);
-    resp = { success: false, etapa: etapa, error: msg };
+    Logger.log('✗ ERRO: ' + msg);
+    resp = { success: false, error: msg };
   }
 
   return ContentService
@@ -84,94 +203,8 @@ function doPost(e) {
 }
 
 // ═══════════════════════════════════════════════════════
-// FUNÇÃO 2 — cadastrarNoFeegow(dados)
-// FIX PROBLEMA 3: log detalhado + validação de token
+// FUNÇÃO 2 — gerarResumoClaude(dados)
 // ═══════════════════════════════════════════════════════
-
-function cadastrarNoFeegow(dados) {
-  // FIX: validação do token antes de enviar
-  if (!FEEGOW_TOKEN || FEEGOW_TOKEN === 'SEU_TOKEN_FEEGOW') {
-    Logger.log('⚠️ FEEGOW_TOKEN não configurado — pulando cadastro');
-    return 'TOKEN_NAO_CONFIGURADO';
-  }
-
-  var url = 'https://api.feegow.com/v1/api/pacientes/novo-paciente';
-
-  var payload = {
-    nome: dados.nome,
-    cpf: dados.cpf.replace(/\D/g, ''),
-    nascimento: dados.data_nascimento,
-    celular: dados.celular.replace(/\D/g, ''),
-    email: dados.email,
-    sexo: dados.sexo === 'Masculino' ? 'M' : 'F',
-    cep: dados.cep.replace(/\D/g, ''),
-    endereco: dados.endereco,
-    cidade: dados.cidade,
-    estado: dados.estado
-  };
-
-  var options = {
-    method: 'POST',
-    headers: {
-      'x-access-token': FEEGOW_TOKEN,
-      'Content-Type': 'application/json'
-    },
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true,
-    timeout: 15000
-  };
-
-  // FIX: logs detalhados para diagnóstico
-  Logger.log('📤 URL: ' + url);
-  Logger.log('📤 Token (primeiros 8): ' + FEEGOW_TOKEN.substring(0, 8) + '...');
-  Logger.log('📤 Payload: ' + JSON.stringify(payload));
-
-  var response = UrlFetchApp.fetch(url, options);
-  var statusCode = response.getResponseCode();
-  var bodyText = response.getContentText();
-  var content = {};
-
-  Logger.log('📥 Status: ' + statusCode);
-  Logger.log('📥 Response: ' + bodyText);
-
-  try { content = JSON.parse(bodyText); } catch (e) { content = {}; }
-
-  if (statusCode === 200 || statusCode === 201) {
-    if (content.paciente_id) return content.paciente_id;
-    if (content.data && content.data.paciente_id) return content.data.paciente_id;
-    if (content.id) return content.id;
-  }
-
-  var isDuplicate = (
-    statusCode === 409 ||
-    bodyText.toLowerCase().indexOf('duplicado') !== -1 ||
-    bodyText.toLowerCase().indexOf('já cadastrado') !== -1 ||
-    bodyText.toLowerCase().indexOf('ja cadastrado') !== -1 ||
-    bodyText.toLowerCase().indexOf('cpf') !== -1
-  );
-
-  if (isDuplicate) {
-    Logger.log('⚠️ CPF já cadastrado no Feegow — extraindo paciente_id existente');
-    var existingId =
-      (content.paciente_id) ||
-      (content.data && content.data.paciente_id) ||
-      (content.id) ||
-      (content.data && content.data.id) ||
-      'DUPLICADO';
-    Logger.log('↩️ paciente_id existente: ' + existingId);
-    return existingId;
-  }
-
-  throw new Error(
-    'Feegow API retornou status ' + statusCode + ': ' +
-    (content.message || content.error || bodyText.substring(0, 200))
-  );
-}
-
-// ═══════════════════════════════════════════════════════
-// FUNÇÃO 3 — gerarResumoClaude(dados)
-// ═══════════════════════════════════════════════════════
-
 function gerarResumoClaude(dados) {
   var FALLBACK =
     'Olá! Estamos muito felizes em receber você na NEXUS CLIN. ' +
@@ -218,7 +251,7 @@ function gerarResumoClaude(dados) {
     var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', options);
     var statusCode = response.getResponseCode();
     var bodyText = response.getContentText();
-    Logger.log('📥 Claude RESPONSE [' + statusCode + ']: ' + bodyText.substring(0, 300));
+    Logger.log('📥 Claude [' + statusCode + ']: ' + bodyText.substring(0, 200));
 
     if (statusCode === 200) {
       var content = JSON.parse(bodyText);
@@ -227,51 +260,64 @@ function gerarResumoClaude(dados) {
       }
     }
 
-    Logger.log('⚠️ Claude retornou status ' + statusCode + ' — usando fallback');
+    Logger.log('⚠️ Claude falhou — usando fallback');
     return FALLBACK;
 
   } catch (err) {
-    Logger.log('⚠️ Erro em gerarResumoClaude: ' + err.message + ' — usando fallback');
+    Logger.log('⚠️ Erro em gerarResumoClaude: ' + err.message);
     return FALLBACK;
   }
 }
 
 // ═══════════════════════════════════════════════════════
-// FUNÇÃO 4 — gerarPDFRequisicao(dados)
+// FUNÇÃO 3 — gerarPDFRequisicao(dados)
 // ═══════════════════════════════════════════════════════
-
 function gerarPDFRequisicao(dados) {
   var primeiroNome = dados.nome.split(' ')[0];
   var docId = null;
   var pdfBlob = null;
 
-  var exames = [];
+  var exames;
   if (dados.sexo === 'Masculino') {
     exames = [
-      'Glicemia de Jejum', 'Insulina de Jejum', 'HbA1c', 'TSH + T4 Livre',
-      'Hemograma Completo', 'Ferritina', 'Vitamina D (25-OH)', 'Cortisol Matinal',
-      'Perfil Lipídico Completo', 'TGO + TGP', 'Testosterona Total + SHBG'
+      'Glicemia de Jejum',
+      'Insulina de Jejum',
+      'HbA1c',
+      'TSH + T4 Livre',
+      'Hemograma Completo',
+      'Ferritina',
+      'Vitamina D (25-OH)',
+      'Cortisol Matinal',
+      'Perfil Lipídico Completo',
+      'TGO + TGP',
+      'Testosterona Total + SHBG'
     ];
   } else {
     exames = [
-      'Glicemia de Jejum', 'Insulina de Jejum', 'HbA1c', 'TSH + T4 Livre',
-      'Hemograma Completo', 'Ferritina', 'Vitamina D (25-OH)', 'Cortisol Matinal',
-      'Perfil Lipídico Completo', 'TGO + TGP',
+      'Glicemia de Jejum',
+      'Insulina de Jejum',
+      'HbA1c',
+      'TSH + T4 Livre',
+      'Hemograma Completo',
+      'Ferritina',
+      'Vitamina D (25-OH)',
+      'Cortisol Matinal',
+      'Perfil Lipídico Completo',
+      'TGO + TGP',
       'Testosterona Total + SHBG + DHEA-S + LH + FSH'
     ];
   }
 
   var hoje = Utilities.formatDate(new Date(), 'America/Recife', 'dd/MM/yyyy');
-  var doc = DocumentApp.create('nexus_req_temp_' + Date.now());
+
+  var doc = DocumentApp.create('nexus_req_' + Date.now());
   docId = doc.getId();
   var body = doc.getBody();
-
   body.setMarginTop(56);
   body.setMarginBottom(56);
   body.setMarginLeft(72);
   body.setMarginRight(72);
 
-  // CABEÇALHO
   var t1 = body.appendParagraph(CLINICA);
   t1.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   t1.getChild(0).asText().setFontSize(18).setBold(true).setForegroundColor('#0B1F3A');
@@ -294,7 +340,6 @@ function gerarPDFRequisicao(dados) {
 
   body.appendHorizontalRule();
 
-  // DADOS DO PACIENTE
   var pn = body.appendParagraph('Paciente: ' + dados.nome);
   pn.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
   pn.getChild(0).asText().setFontSize(11);
@@ -305,14 +350,12 @@ function gerarPDFRequisicao(dados) {
 
   body.appendHorizontalRule();
 
-  // TÍTULO DA REQUISIÇÃO
   var tr = body.appendParagraph('Painel Metabólico NEXUS — Bloqueios ao Emagrecimento');
   tr.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   tr.getChild(0).asText().setFontSize(13).setBold(true).setForegroundColor('#0B1F3A');
 
   body.appendParagraph('');
 
-  // LISTA DE EXAMES
   for (var i = 0; i < exames.length; i++) {
     var item = body.appendParagraph((i + 1) + '. ' + exames[i]);
     item.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
@@ -321,16 +364,11 @@ function gerarPDFRequisicao(dados) {
 
   body.appendParagraph('');
 
-  // JUSTIFICATIVA CLÍNICA
   var just =
     'Solicitação de mapeamento metabólico direcionado à identificação de resistência ' +
     'insulínica, disfunção tireoidiana, hipovitaminoses, sobrecarga hepática e ' +
     'desequilíbrio hormonal — condições de alta prevalência nessa população e com ' +
-    'impacto direto na resposta ao emagrecimento. Os achados nortearão a construção ' +
-    'de um protocolo individualizado, podendo envolver condutas hormonais, nutricionais, ' +
-    'farmacológicas ou ortomoleculares, com objetivo de personalizar a intervenção, ' +
-    'antecipar riscos e garantir segurança no uso de análogos de GLP-1 e demais ' +
-    'estratégias metabólicas.';
+    'impacto direto na resposta ao emagrecimento.';
 
   var pj = body.appendParagraph(just);
   pj.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
@@ -342,7 +380,6 @@ function gerarPDFRequisicao(dados) {
 
   body.appendHorizontalRule();
 
-  // ASSINATURA
   var la = body.appendParagraph('_____________________________________________');
   la.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
   la.getChild(0).asText().setFontSize(11);
@@ -372,9 +409,9 @@ function gerarPDFRequisicao(dados) {
     if (docId) {
       try {
         DriveApp.getFileById(docId).setTrashed(true);
-        Logger.log('🗑️ Documento temporário removido: ' + docId);
+        Logger.log('🗑️ Doc temporário removido');
       } catch (delErr) {
-        Logger.log('⚠️ Não foi possível remover doc temporário: ' + delErr.message);
+        Logger.log('⚠️ Não foi possível remover doc: ' + delErr.message);
       }
     }
   }
@@ -383,16 +420,14 @@ function gerarPDFRequisicao(dados) {
 }
 
 // ═══════════════════════════════════════════════════════
-// FUNÇÃO 5 — enviarEmails(dados, resumo, pdfBlob)
-// FIX PROBLEMA 2: e-mail interno inclui tabela com TODAS as respostas
+// FUNÇÃO 4 — enviarEmails(dados, resumo, pdfBlob)
 // ═══════════════════════════════════════════════════════
-
 function enviarEmails(dados, resumo, pdfBlob) {
   var primeiroNome = dados.nome.split(' ')[0];
+  var dataHora = Utilities.formatDate(new Date(), 'America/Recife', "dd/MM/yyyy 'às' HH:mm");
 
-  // ── E-MAIL 1: PACIENTE ───────────────────────────────
   var htmlPaciente =
-    '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">' +
     '<style>' +
     'body{font-family:Arial,sans-serif;background:#f5f5f5;margin:0}' +
     '.wrap{max-width:600px;margin:0 auto;background:#fff}' +
@@ -413,29 +448,42 @@ function enviarEmails(dados, resumo, pdfBlob) {
     '<div class="hdr"><h1>NEXUS CLIN</h1>' +
     '<p>Centro de Performance Metab&oacute;lica &amp; Longevidade</p></div>' +
     '<div class="bod">' +
-    '<p class="ola">Ol&aacute;, ' + primeiroNome + '! 👋</p>' +
+    '<p class="ola">Ol&aacute;, ' + primeiroNome + '! &#128075;</p>' +
     '<p style="color:#444;font-size:15px;line-height:1.7">É com muito prazer que recebemos você na ' +
     '<strong>NEXUS CLIN</strong>. Nossa missão é oferecer um cuidado personalizado, baseado em evidências, ' +
     'focado no seu equilíbrio metabólico e qualidade de vida a longo prazo.</p>' +
-    '<div class="resumo"><h3>Seu panorama inicial</h3><p>' + resumo + '</p></div>' +
-    '<div class="anexo">📎 <strong>Sua solicitação de exames está em anexo.</strong><br>' +
-    'Realize a coleta o quanto antes para que possamos iniciar seu protocolo personalizado com precisão.</div>' +
+    '<div class="resumo"><h3>Seu panorama inicial</h3><p>' + resumo + '</p></div>';
+
+  var semExames = (dados.tem_exames === 'Não tenho exames recentes');
+
+  if (pdfBlob && semExames) {
+    htmlPaciente += '<div class="anexo">📄 <strong>Sua solicitação de exames está em anexo.</strong><br>' +
+      'Realize a coleta o quanto antes para que possamos iniciar seu protocolo personalizado com precisão.</div>';
+  }
+
+  htmlPaciente +=
     '<p style="color:#555;font-size:14px;line-height:1.7">Em caso de dúvidas, entre em contato pelo WhatsApp ' +
-    'ou aguarde nosso retorno após análise dos seus exames. Estamos com você em cada etapa dessa jornada. 💚</p>' +
+    'ou aguarde nosso retorno após análise dos seus exames. Estamos com você em cada etapa dessa jornada. &#128154;</p>' +
     '<div class="ass"><strong>Sosthenes dos Santos Alves</strong><br>' +
     'COREN-PB 568176 | Enfermeiro de Prática Avançada<br>' +
-    'NEXUS CLIN — Livramento-PB<br>📱 (83) 9 9858-5691<br>✉️ nexusclinpb@gmail.com</div>' +
+    'NEXUS CLIN — Livramento-PB<br>&#128241; (83) 9 9858-5691<br>&#9993; nexusclinpb@gmail.com</div>' +
     '</div>' +
     '<div class="ftr"><span>NEXUS CLIN</span> — Livramento-PB<br>' +
-    'Este e-mail contém informações confidenciais de saúde. Caso não seja o destinatário, por favor desconsidere.</div>' +
+    'Este e-mail contém informações confidenciais de saúde.</div>' +
     '</div></body></html>';
 
   try {
+    var anexosPaciente = [];
+    if (pdfBlob && semExames) anexosPaciente.push(pdfBlob);
     GmailApp.sendEmail(
       dados.email,
-      'Bem-vindo(a) à NEXUS CLIN — sua jornada começa agora 🌿',
-      'Olá ' + primeiroNome + '! Sua anamnese foi recebida. Visualize em HTML para melhor experiência.',
-      { name: 'NEXUS CLIN', htmlBody: htmlPaciente, attachments: [pdfBlob] }
+      'Bem-vindo(a) à NEXUS CLIN',
+      'Visualize em HTML para melhor experiência.',
+      {
+        name: 'NEXUS CLIN',
+        htmlBody: htmlPaciente,
+        attachments: anexosPaciente
+      }
     );
     Logger.log('✓ E-mail paciente enviado para ' + dados.email);
   } catch (e) {
@@ -443,91 +491,128 @@ function enviarEmails(dados, resumo, pdfBlob) {
     throw e;
   }
 
-  // ── E-MAIL 2: PROFISSIONAL (alerta interno) ──────────
-  var dataHora = Utilities.formatDate(new Date(), 'America/Recife', "dd/MM/yyyy 'às' HH:mm");
-
   var nascFormatado = dados.data_nascimento || '';
   if (nascFormatado.indexOf('-') !== -1) {
     var partes = nascFormatado.split('-');
     if (partes.length === 3) nascFormatado = partes[2] + '/' + partes[1] + '/' + partes[0];
   }
 
-  // FIX PROBLEMA 2: gera linhas com TODAS as respostas (exceto campos da tabela principal)
-  var linhasRespostas = '';
-  var camposIgnorar = ['timestamp', 'sexo', 'nome',
-    'cpf', 'data_nascimento', 'celular', 'email',
-    'cep', 'endereco', 'cidade', 'estado'];
+  var camposIgnorar = ['nome', 'cpf', 'email', 'celular',
+    'data_nascimento', 'cep', 'endereco', 'cidade',
+    'estado', 'sexo', 'timestamp'];
+
+  var labelCampo = {
+    objetivo:         'Objetivo principal',
+    nivel_energia:    'Nível de energia (1-5)',
+    qualidade_sono:   'Qualidade do sono (1-5)',
+    nivel_estresse:   'Nível de estresse',
+    sint_gerais:      'Sintomas gerais',
+    sint_emocionais:  'Sintomas emocionais',
+    medicamentos:     'Medicamentos em uso',
+    suplementos:      'Suplementos em uso',
+    pratica_exercicio:'Pratica exercício?',
+    tipo_exercicio:   'Tipo de exercício',
+    horas_sono:       'Horas de sono/noite',
+    agua:             'Consumo de água/dia',
+    alimentacao:      'Como descreve alimentação',
+    restricoes:       'Restrições alimentares',
+    historico:        'Histórico de saúde',
+    tem_exames:       'Exames de sangue recentes'
+  };
+
+  var linhasAnamnese = '';
   Object.keys(dados).forEach(function(campo) {
     if (camposIgnorar.indexOf(campo) === -1) {
       var valor = dados[campo];
-      if (valor && String(valor).trim() !== '') {
-        linhasRespostas += '<tr>' +
-          '<td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:bold;color:#555;width:40%">' +
-          campo.replace(/_/g, ' ') + '</td>' +
-          '<td style="padding:8px 12px;border-bottom:1px solid #eee;color:#333">' + valor + '</td>' +
+      if (valor !== undefined && valor !== null && String(valor).trim() !== '') {
+        linhasAnamnese +=
+          '<tr>' +
+          '<td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:bold;color:#0B1F3A;width:38%">' +
+          (labelCampo[campo] || campo.replace(/_/g,' ')) +
+          '</td>' +
+          '<td style="padding:8px 12px;border-bottom:1px solid #eee;color:#333">' +
+          String(valor) +
+          '</td>' +
           '</tr>';
       }
     }
   });
 
+  // --- Triagem rapida: PHQ/GAD ou nivel_energia/stress ---
+  var tagHumor   = dados.phq_1 ? dados.phq_1.split(' - ')[0] : '-';
+  var tagAnsied  = dados.gad_1 ? dados.gad_1.split(' - ')[0] : '-';
+  var tagTriagem = '[PHQ:' + tagHumor + ' | GAD:' + tagAnsied + ']';
+
   var htmlInterno =
     '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
     '<style>' +
     'body{font-family:Arial,sans-serif;background:#f0f0f0;margin:0}' +
-    '.wrap{max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden}' +
+    '.wrap{max-width:700px;margin:0 auto;background:#fff}' +
     '.hdr{background:#0B1F3A;padding:20px 24px}' +
     '.hdr h2{color:#C9A84C;margin:0;font-size:16px}' +
     '.hdr p{color:#aaa;margin:4px 0 0;font-size:12px}' +
     '.bod{padding:24px}' +
-    'table{width:100%;border-collapse:collapse;font-size:14px}' +
+    'table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px}' +
     'tr:nth-child(even){background:#fafafa}' +
     'td{padding:10px 12px;border-bottom:1px solid #eee;color:#333}' +
     'td:first-child{font-weight:bold;color:#0B1F3A;width:38%}' +
-    '.btn{display:block;width:fit-content;margin:24px auto 0;background:#0B1F3A;color:#fff;' +
-    'padding:12px 28px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold}' +
-    '.ftr{background:#f5f5f5;padding:12px 24px;text-align:center;color:#999;font-size:11px;margin-top:24px}' +
+    'h3{color:#0B1F3A;margin:24px 0 12px;font-size:14px;border-bottom:2px solid #C9A84C;padding-bottom:6px}' +
+    '.ftr{background:#f5f5f5;padding:12px 24px;text-align:center;color:#999;font-size:11px}' +
     '</style></head>' +
     '<body><div class="wrap">' +
-    '<div class="hdr"><h2>🔔 Novo paciente aguardando atendimento</h2>' +
+    '<div class="hdr"><h2>&#128276; Novo paciente aguardando atendimento ' + tagTriagem + '</h2>' +
     '<p>Recebido em ' + dataHora + '</p></div>' +
-    '<div class="bod"><table>' +
-    '<tr><td>Nome completo</td><td>' + dados.nome + '</td></tr>' +
+    '<div class="bod">' +
+    '<h3>Dados Pessoais</h3>' +
+    '<table>' +
+    '<tr><td>Nome completo</td><td>' + (dados.nome || '') + '</td></tr>' +
     '<tr><td>Data de nascimento</td><td>' + nascFormatado + '</td></tr>' +
-    '<tr><td>Celular</td><td>' + dados.celular + '</td></tr>' +
-    '<tr><td>E-mail</td><td>' + dados.email + '</td></tr>' +
-    '<tr><td>Sexo</td><td>' + dados.sexo + '</td></tr>' +
-    '<tr><td>Cidade / UF</td><td>' + dados.cidade + ' / ' + dados.estado + '</td></tr>' +
-    '<tr><td>CEP</td><td>' + dados.cep + '</td></tr>' +
-    '<tr><td>Objetivo principal</td><td>' + (dados.objetivo || 'Não informado') + '</td></tr>' +
-    '<tr><td>Sintomas relatados</td><td>' + (dados.sint_gerais || 'Não informado') + '</td></tr>' +
+    '<tr><td>Celular</td><td>' + (dados.celular || '') + '</td></tr>' +
+    '<tr><td>E-mail</td><td>' + (dados.email || '') + '</td></tr>' +
+    '<tr><td>Sexo</td><td>' + (dados.genero || '') + '</td></tr>' +
+    '<tr><td>Cidade / UF</td><td>' + (dados.cidade || '') + ' / ' + (dados.estado || '') + '</td></tr>' +
+    '<tr><td>CEP</td><td>' + (dados.cep || '') + '</td></tr>' +
     '</table>' +
-    '<h3 style="color:#0B1F3A;margin:24px 0 12px;font-size:14px">Respostas completas da anamnese</h3>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-    linhasRespostas +
-    '</table>' +
-    '<a class="btn" href="https://app.feegow.com/main/?P=pacientes">Abrir paciente no Feegow →</a>' +
+      '<div style="background:#f0f7ff;border-left:4px solid #0B1F3A;padding:12px 16px;margin:0 0 20px;border-radius:0 4px 4px 0">' +
+      '<strong style="color:#0B1F3A">Triagem rápida</strong><br>' +
+      '<span style="margin-right:16px">&#128512; PHQ: <strong>' + tagHumor + '</strong></span>' +
+      '<span>&#128165; GAD: <strong>' + tagAnsied + '</strong></span>' +
+      '</div>' +
+    '<h3>Respostas da Anamnese</h3>' +
+    '<table>' + linhasAnamnese + '</table>' +
     '</div>' +
-    '<div class="ftr">Mensagem automática — Sistema de Anamnese NEXUS CLIN<br>Não responda este e-mail.</div>' +
+    '<div class="ftr">Sistema de Anamnese NEXUS CLIN — Não responda este e-mail.</div>' +
     '</div></body></html>';
 
   try {
+    var anexosInternos = (pdfBlob && semExames) ? [pdfBlob] : [];
     GmailApp.sendEmail(
       EMAIL_PROFISSIONAL,
-      '[NOVO PACIENTE] ' + dados.nome,
-      'Novo paciente cadastrado. Veja o e-mail HTML para detalhes completos.',
-      { name: 'NEXUS CLIN Sistema', htmlBody: htmlInterno }
+      '[NOVO PACIENTE] ' + dados.nome + ' ' + tagTriagem,  // triagem
+      'Novo paciente cadastrado.',
+      { name: 'NEXUS CLIN Sistema', htmlBody: htmlInterno, attachments: anexosInternos }
     );
-    Logger.log('✓ Alerta interno enviado para ' + EMAIL_PROFISSIONAL);
+    Logger.log('✓ E-mail Sosthenes enviado');
   } catch (e) {
-    Logger.log('✗ ERRO alerta interno: ' + e.message);
-    // não propaga — falha silenciosa
+    Logger.log('⚠️ Falha ao enviar e-mail Sosthenes (silenciosa): ' + e.message);
+  }
+
+  try {
+    GmailApp.sendEmail(
+      EMAIL_JULIA,
+      '[NOVO PACIENTE] ' + dados.nome + ' ' + tagTriagem,  // triagem
+      'Novo paciente cadastrado.',
+      { name: 'NEXUS CLIN Sistema', htmlBody: htmlInterno, attachments: (pdfBlob && semExames) ? [pdfBlob] : [] }
+    );
+    Logger.log('✓ E-mail Julia enviado');
+  } catch (e) {
+    Logger.log('⚠️ Falha ao enviar e-mail Julia (silenciosa): ' + e.message);
   }
 }
 
 // ═══════════════════════════════════════════════════════
-// FUNÇÃO 6 — doGet(e) — TESTE DE STATUS
+// FUNÇÃO 5 — doGet(e) — TESTE DE STATUS
 // ═══════════════════════════════════════════════════════
-
 function doGet(e) {
   var agora = Utilities.formatDate(new Date(), 'America/Recife', 'dd/MM/yyyy HH:mm');
   var html =
@@ -543,9 +628,166 @@ function doGet(e) {
     '</style></head><body>' +
     '<div class="card">' +
     '<div class="ok">✅</div>' +
-    '<h1><span class="gold">NEXUS CLIN</span> — Webhook ativo</h1>' +
-    '<p>Versão 1.1 | Livramento-PB</p>' +
-    '<p>Data: ' + agora + '</p>' +
+    '<h1><span class="gold">NEXUS CLIN</span> — Webhook ativo v18</h1>' +
+    '<p>Livramento-PB | ' + agora + '</p>' +
     '</div></body></html>';
   return HtmlService.createHtmlOutput(html);
+}
+
+// ═══════════════════════════════════════════════════════
+// FUNÇÃO TESTE — testarWebhook()
+// ═══════════════════════════════════════════════════════
+function testarWebhook() {
+  var dadosTeste = {
+    nome:                   'João Teste Silva',
+    cpf:                    '529.982.247-25',
+    data_nascimento:        '1990-05-15',
+    celular:                '(83) 9 9999-9999',
+    email:                  'nexusclinpb@gmail.com',
+    sexo:                   'Masculino',
+    cep:                    '58190-000',
+    endereco:               'Rua das Flores, 123',
+    cidade:                 'Livramento',
+    estado:                 'PB',
+    objetivo:               'Emagrecer e ter mais energia',
+    nivel_energia:          '4',
+    qualidade_sono:         '5',
+    nivel_estresse:         'Alta',
+    phq_1:                  '2 - Mais da metade dos dias',
+    gad_1:                  '1 - Vários dias',
+    sint_gerais:            'Cansaço, dor de cabeça frequente',
+    sint_emocionais:        'Ansiedade, irritabilidade',
+    medicamentos:           'Nenhum',
+    suplementos:            'Vitamina D ocasional',
+    pratica_exercicio:      'Não',
+    tipo_exercicio:         '',
+    horas_sono:             '6',
+    agua:                   '1.5L',
+    peso_atual:             '92kg',
+    altura:                 '1.75m',
+    comportamento_alimentar:'Come rápido, muita comida processada',
+    intolerancia:           'Nenhuma conhecida',
+    observacoes_finais:     'Quer melhorar disposição e perder 15kg',
+    tem_exames:         'Não tenho exames recentes',
+  };
+
+  Logger.log('🚀 === INICIANDO TESTE COMPLETO ===');
+  Logger.log('👤 Paciente: ' + dadosTeste.nome);
+  Logger.log('📧 Email destino: ' + dadosTeste.email);
+
+  // ETAPA 0: Planilha
+  Logger.log('--- ETAPA 0: Planilha ---');
+  salvarNaPlanilha(dadosTeste);
+
+  // ETAPA 1: Claude
+  Logger.log('--- ETAPA 1: Claude ---');
+  var resumo;
+  try {
+    resumo = gerarResumoClaude(dadosTeste);
+    Logger.log('✓ Resumo gerado: ' + resumo.substring(0, 100) + '...');
+  } catch(err) {
+    resumo = 'Texto fallback de teste.';
+    Logger.log('⚠️ Claude falhou: ' + err.message);
+  }
+
+  // ETAPA 2: PDF
+  Logger.log('--- ETAPA 2: PDF ---');
+  var pdfBlob = null;
+  try {
+    pdfBlob = gerarPDFRequisicao(dadosTeste);
+    Logger.log('✓ PDF gerado: ' + (pdfBlob ? pdfBlob.getName() : 'null'));
+  } catch(err) {
+    Logger.log('⚠️ PDF falhou: ' + err.message);
+  }
+
+  // ETAPA 3: E-mails
+  Logger.log('--- ETAPA 3: E-mails ---');
+  try {
+    enviarEmails(dadosTeste, resumo, pdfBlob);
+    Logger.log('✓ E-mails enviados');
+  } catch(err) {
+    Logger.log('✗ ERRO e-mails: ' + err.message);
+  }
+
+  // ETAPA 0b: Feegow
+  Logger.log('--- ETAPA 0b: Feegow ---');
+  try {
+    var feegowResult = cadastrarNoFeegow(dadosTeste);
+    Logger.log('✓ ETAPA 0b resultado: ' + JSON.stringify(feegowResult));
+  } catch(err) {
+    Logger.log('⚠️ ETAPA 0b falhou: ' + err.message);
+  }
+
+
+  Logger.log('🏁 === TESTE CONCLUÍDO ===');
+}
+
+// ════════════════════════════════════════════════════════
+// FUNÇÃO — cadastrarNoFeegow(dados)
+// Endpoint oficial: POST /v1/api/pacientes/novo-paciente
+// Header: x-access-token (não Bearer)
+// Data: converte DD/MM/YYYY -> YYYY-MM-DD antes de enviar
+// ════════════════════════════════════════════════════════
+function cadastrarNoFeegow(dados) {
+  var token = FEEGOW_TOKEN;
+  var unidadeId = PropertiesService.getScriptProperties().getProperty('FEEGOW_UNIDADE_ID') || '';
+  if (!token) {
+    Logger.log('⚠️ FEEGOW_TOKEN não configurado — pulando cadastro');
+    return 'TOKEN_NAO_CONFIGURADO';
+  }
+
+  var payload = {
+    nome_completo: dados.nome,
+    cpf:           (dados.cpf || '').replace(/\D/g, ''),
+    data_nascimento: formatarDataFeegow(dados.data_nascimento),
+    genero:        dados.sexo === 'Masculino' ? 'M' : 'F',
+    celular1:      (dados.celular || '').replace(/\D/g, ''),
+    email1:        dados.email || '',
+    cep:           (dados.cep || '').replace(/\D/g, ''),
+    endereco:      dados.endereco || '',
+    cidade:        dados.cidade   || '',
+    estado:        dados.estado   || '',
+    unidade_id:   unidadeId
+  };
+
+  var options = {
+    method: 'POST',
+    headers: {
+      'x-access-token': token,
+      'Content-Type':   'application/json'
+    },
+    payload:           JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  Logger.log('📤 Feegow payload: ' + JSON.stringify(payload));
+  var response   = UrlFetchApp.fetch('https://api.feegow.com/v1/api/patient/create', options);
+  var statusCode = response.getResponseCode();
+  var body       = response.getContentText();
+
+  Logger.log('🔁 Feegow [' + statusCode + ']: ' + body);
+
+  try {
+    var json = JSON.parse(body);
+    if (json.success) {
+      Logger.log('✓ ETAPA 0b: paciente_id Feegow: ' + json.content.paciente_id);
+      return json.content.paciente_id;
+    } else {
+      Logger.log('⚠️ Feegow falhou: ' + JSON.stringify(json));
+      return null;
+    }
+  } catch(e) {
+    Logger.log('✗ Feegow parse error: ' + e.message + ' | body: ' + body);
+    return null;
+  }
+}
+// ════════════════════════════════════════════════════════
+// HELPER — formatarDataFeegow(dataStr)
+// Converte DD/MM/YYYY -> YYYY-MM-DD (formato ISO esperado pelo Feegow)
+// ════════════════════════════════════════════════════════
+function formatarDataFeegow(dataStr) {
+  if (!dataStr) return '';
+  var p = dataStr.split('/');
+  if (p.length === 3) return p[2] + '-' + p[1] + '-' + p[0];
+  return dataStr; // já está em YYYY-MM-DD ou outro formato
 }
