@@ -2350,8 +2350,10 @@
   if (sucesso) {
     try { localStorage.removeItem(BACKUP_KEY); } catch(e) {}
     localStorage.removeItem(STORAGE_KEY);
-    document.getElementById('section-' + currentSection)?.classList?.remove('active');
-    document.getElementById('section-success')?.classList?.add('show');
+    const activeEl = document.querySelector('.section.active');
+    if (activeEl) activeEl.classList.remove('active');
+    const successScreen = document.getElementById('successScreen');
+    if (successScreen) successScreen.style.display = 'flex';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } else {
     showSubmitFeedback(
