@@ -67,7 +67,7 @@ function salvarNaPlanilha(dados) {
         'Pratica Exercício', 'Tipo Exercício',
         'Horas Sono', 'Agua', 'Peso Atual', 'Altura',
         'Comportamento Alimentar', 'Intolerância',
-        'Observações Finais', 'JSON Completo'
+        'Observações Finais', 'Feegow ID', 'JSON Completo'
       ];
       aba.appendRow(cabecalho);
       aba.getRange(1, 1, 1, cabecalho.length)
@@ -105,6 +105,7 @@ function salvarNaPlanilha(dados) {
       dados.comportamento_alimentar || '',
       dados.intolerancia            || '',
       dados.observacoes_finais      || '',
+      dados.feegow_id            || '',
       JSON.stringify(dados)
     ];
 
@@ -157,6 +158,7 @@ function doPost(e) {
     } catch (feegowErr) {
       Logger.log('⚠️ ETAPA 0b: Feegow falhou (continua): ' + feegowErr.message);
     }
+    dados.feegow_id = pacienteId;
 
     // ── ETAPA 1: Gerar resumo com Claude ──
     Logger.log('⏳ Etapa 1: gerarResumoClaude');
@@ -569,7 +571,7 @@ function enviarEmails(dados, resumo, pdfBlob) {
     '<tr><td>Data de nascimento</td><td>' + nascFormatado + '</td></tr>' +
     '<tr><td>Celular</td><td>' + (dados.celular || '') + '</td></tr>' +
     '<tr><td>E-mail</td><td>' + (dados.email || '') + '</td></tr>' +
-    '<tr><td>Sexo</td><td>' + (dados.genero || '') + '</td></tr>' +
+    '<tr><td>Sexo</td><td>' + (dados.sexo || '') + '</td></tr>' +
     '<tr><td>Cidade / UF</td><td>' + (dados.cidade || '') + ' / ' + (dados.estado || '') + '</td></tr>' +
     '<tr><td>CEP</td><td>' + (dados.cep || '') + '</td></tr>' +
     '</table>' +
