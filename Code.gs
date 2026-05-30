@@ -61,7 +61,7 @@ function salvarNaPlanilha(dados) {
       var cabecalho = [
         'Data/Hora', 'Nome', 'CPF', 'Nascimento',
         'Celular', 'Email', 'Sexo', 'Cidade', 'Estado',
-        'Objetivo', 'Energia', 'Sono', 'Estresse',
+        'Objetivo', 'Disposição', 'Qualidade Vida', 'Estresse',
         'Sint. Gerais', 'Sint. Emocionais',
         'Medicamentos', 'Suplementos',
         'Pratica Exercício', 'Tipo Exercício',
@@ -83,15 +83,15 @@ function salvarNaPlanilha(dados) {
       dados.nome                    || '',
       dados.cpf                     || '',
       dados.data_nascimento         || '',
-      dados.celular                 || '',
+      dados.whatsapp               || '',
       dados.email                   || '',
       dados.sexo                    || '',
       dados.cidade                  || '',
       dados.estado                  || '',
       dados.objetivo                || '',
-      dados.nivel_energia           || '',
-      dados.qualidade_sono          || '',
-      dados.nivel_estresse          || '',
+      dados.disposicao              || '',
+      dados.qualidade_vida          || '',
+      dados.estresse                || '',
       dados.sint_gerais             || '',
       dados.sint_emocionais         || '',
       dados.medicamentos            || '',
@@ -217,16 +217,21 @@ function gerarResumoClaude(dados) {
 
     var promptUsuario =
       'Paciente: ' + primeiroNome + '\n' +
-      'Objetivo principal: ' + (dados.objetivo || 'Não informado') + '\n' +
-      'Nível de energia: ' + (dados.nivel_energia || '?') + '/10\n' +
-      'Qualidade do sono: ' + (dados.qualidade_sono || '?') + '/10\n' +
-      'Nível de estresse: ' + (dados.nivel_estresse || 'Não informado') + '\n' +
+      'Objetivo(s): ' + (dados.objetivo || 'Não informado') + '\n' +
+      'Disposição/energia (1-5): ' + (dados.disposicao || '?') + '\n' +
+      'Nível de estresse (1-5): ' + (dados.estresse || '?') + '\n' +
+      'Qualidade de vida (1-5): ' + (dados.qualidade_vida || '?') + '\n' +
+      'Saúde mental (1-5): ' + (dados.saude_mental || '?') + '\n' +
+      'Horas de sono/noite: ' + (dados.horas_sono || '?') + '\n' +
       'Sintomas gerais: ' + (dados.sint_gerais || 'Nenhum relatado') + '\n' +
-      'Sintomas emocionais: ' + (dados.sint_emocionais || 'Nenhum relatado') + '\n\n' +
+      'Sintomas emocionais: ' + (dados.sint_emocionais || 'Nenhum relatado') + '\n' +
+      'Diagnósticos metabólicos: ' + (dados.diag_metab || 'Nenhum informado') + '\n' +
+      'Medicamentos: ' + (dados.medicamentos || 'Nenhum') + '\n' +
+      'Principais desafios: ' + (dados.desafios || 'Não informado') + '\n\n' +
       'Escreva um parágrafo acolhedor e empático (máximo 4 frases), iniciando pelo ' +
       'primeiro nome do paciente (' + primeiroNome + '), que apresente brevemente o ' +
-      'panorama clínico e termine com uma frase de encorajamento sobre o início do ' +
-      'protocolo na NEXUS CLIN.';
+      'panorama clínico real (use os dados acima) e termine com uma frase de encorajamento ' +
+      'sobre o início do protocolo personalizado na NEXUS CLIN.';
 
     var apiBody = {
       model: 'claude-sonnet-4-20250514',
@@ -499,27 +504,53 @@ function enviarEmails(dados, resumo, pdfBlob) {
     if (partes.length === 3) nascFormatado = partes[2] + '/' + partes[1] + '/' + partes[0];
   }
 
-  var camposIgnorar = ['nome', 'cpf', 'email', 'celular',
-    'data_nascimento', 'cep', 'endereco', 'cidade',
-    'estado', 'sexo', 'timestamp'];
+  var camposIgnorar = ['nome', 'cpf', 'email', 'whatsapp',
+    'data_nascimento', 'cep', 'endereco', 'numero_endereco', 'complemento', 'bairro',
+    'cidade', 'estado', 'sexo', 'timestamp', 'feegow_id'];
 
   var labelCampo = {
-    objetivo:         'Objetivo principal',
-    nivel_energia:    'Nível de energia (1-5)',
-    qualidade_sono:   'Qualidade do sono (1-5)',
-    nivel_estresse:   'Nível de estresse',
-    sint_gerais:      'Sintomas gerais',
-    sint_emocionais:  'Sintomas emocionais',
-    medicamentos:     'Medicamentos em uso',
-    suplementos:      'Suplementos em uso',
-    pratica_exercicio:'Pratica exercício?',
-    tipo_exercicio:   'Tipo de exercício',
-    horas_sono:       'Horas de sono/noite',
-    agua:             'Consumo de água/dia',
-    alimentacao:      'Como descreve alimentação',
-    restricoes:       'Restrições alimentares',
-    historico:        'Histórico de saúde',
-    tem_exames:       'Exames de sangue recentes'
+    objetivo:              'Objetivos',
+    prazo:                 'Prazo desejado',
+    desafios:              'Principais desafios',
+    percepcao_corpo:       'Percepção corporal',
+    variacao_peso:         'Variação de peso',
+    rotina_trabalho:       'Rotina de trabalho',
+    disposicao:            'Disposição/energia (1-5)',
+    estresse:              'Estresse (1-5)',
+    saude_mental:          'Saúde mental (1-5)',
+    saude_fisica:          'Saúde física (1-5)',
+    qualidade_vida:        'Qualidade de vida (1-5)',
+    horas_sono:            'Horas de sono/noite',
+    queixas_sono:          'Queixas de sono',
+    sonolencia:            'Sonolência diurna',
+    pratica_exercicio:     'Pratica exercício?',
+    tipo_exercicio:        'Tipo de exercício',
+    freq_exercicio:        'Frequência (dias/sem)',
+    duracao_treino:        'Duração treino (min)',
+    agua:                  'Consumo de água/dia',
+    alcool:                'Consumo de álcool',
+    tabagismo:             'Tabagismo',
+    padrao_alimentar:      'Padrão alimentar',
+    intolerancia:          'Intolerâncias alimentares',
+    comportamento_alimentar: 'Comportamento alimentar',
+    sint_digestivos:       'Sintomas digestivos',
+    sint_gerais:           'Sintomas gerais',
+    sint_emocionais:       'Sintomas emocionais',
+    sint_neuro:            'Sintomas neurológicos',
+    sint_cardio:           'Sintomas cardiovasculares',
+    sint_derm:             'Sintomas dermatológicos',
+    diag_cardio:           'Diagnósticos cardiovasculares',
+    diag_metab:            'Diagnósticos metabólicos',
+    diag_digest:           'Diagnósticos digestivos',
+    diag_musculo:          'Diagnósticos músculo-esqueléticos',
+    diag_autoimune:        'Diagnósticos autoimunes',
+    diag_psiq:             'Diagnósticos psiquiátricos',
+    medicamentos:          'Medicamentos em uso',
+    suplementos:           'Suplementos em uso',
+    medicamentos_emagrec:  'Medicamentos p/ emagrecimento',
+    libido:                'Libido',
+    tem_exames:            'Exames de sangue recentes',
+    observacoes_finais:    'Observações finais'
   };
 
   var linhasAnamnese = '';
@@ -540,7 +571,7 @@ function enviarEmails(dados, resumo, pdfBlob) {
     }
   });
 
-  // --- Triagem rapida: PHQ/GAD ou nivel_energia/stress ---
+  // --- Triagem rapida: PHQ (humor) / GAD (ansiedade) ---
   var tagHumor   = dados.phq_1 ? dados.phq_1.split(' - ')[0] : '-';
   var tagAnsied  = dados.gad_1 ? dados.gad_1.split(' - ')[0] : '-';
   var tagTriagem = '[PHQ:' + tagHumor + ' | GAD:' + tagAnsied + ']';
@@ -569,7 +600,7 @@ function enviarEmails(dados, resumo, pdfBlob) {
     '<table>' +
     '<tr><td>Nome completo</td><td>' + (dados.nome || '') + '</td></tr>' +
     '<tr><td>Data de nascimento</td><td>' + nascFormatado + '</td></tr>' +
-    '<tr><td>Celular</td><td>' + (dados.celular || '') + '</td></tr>' +
+    '<tr><td>Celular / WhatsApp</td><td>' + (dados.whatsapp || '') + '</td></tr>' +
     '<tr><td>E-mail</td><td>' + (dados.email || '') + '</td></tr>' +
     '<tr><td>Sexo</td><td>' + (dados.sexo || '') + '</td></tr>' +
     '<tr><td>Cidade / UF</td><td>' + (dados.cidade || '') + ' / ' + (dados.estado || '') + '</td></tr>' +
@@ -577,7 +608,7 @@ function enviarEmails(dados, resumo, pdfBlob) {
     '</table>' +
       '<div style="background:#f0f7ff;border-left:4px solid #0B1F3A;padding:12px 16px;margin:0 0 20px;border-radius:0 4px 4px 0">' +
       '<strong style="color:#0B1F3A">Triagem rápida</strong><br>' +
-      '<span style="margin-right:16px">&#128512; PHQ: <strong>' + tagHumor + '</strong></span>' +
+      '<span style="margin-right:16px">&#128203; PHQ: <strong>' + tagHumor + '</strong></span>' +
       '<span>&#128165; GAD: <strong>' + tagAnsied + '</strong></span>' +
       '</div>' +
     '<h3>Respostas da Anamnese</h3>' +
@@ -630,7 +661,7 @@ function doGet(e) {
     '</style></head><body>' +
     '<div class="card">' +
     '<div class="ok">✅</div>' +
-    '<h1><span class="gold">NEXUS CLIN</span> — Webhook ativo v18</h1>' +
+    '<h1><span class="gold">NEXUS CLIN</span> — Webhook ativo v19.2</h1>' +
     '<p>Livramento-PB | ' + agora + '</p>' +
     '</div></body></html>';
   return HtmlService.createHtmlOutput(html);
@@ -643,34 +674,57 @@ function testarWebhook() {
   var dadosTeste = {
     nome:                   'João Teste Silva',
     cpf:                    '529.982.247-25',
-    data_nascimento:        '1990-05-15',
-    celular:                '(83) 9 9999-9999',
+    data_nascimento:        '15/05/1990',
+    whatsapp:               '83999999999',
     email:                  'nexusclinpb@gmail.com',
     sexo:                   'Masculino',
-    cep:                    '58190-000',
-    endereco:               'Rua das Flores, 123',
+    cep:                    '58190000',
+    endereco:               'Rua das Flores',
+    numero_endereco:        '123',
+    complemento:            '',
+    bairro:                 'Centro',
     cidade:                 'Livramento',
     estado:                 'PB',
-    objetivo:               'Emagrecer e ter mais energia',
-    nivel_energia:          '4',
-    qualidade_sono:         '5',
-    nivel_estresse:         'Alta',
-    phq_1:                  '2 - Mais da metade dos dias',
-    gad_1:                  '1 - Vários dias',
-    sint_gerais:            'Cansaço, dor de cabeça frequente',
-    sint_emocionais:        'Ansiedade, irritabilidade',
+    profissao:              'Empresário',
+    carga_horaria:          '50',
+    estado_civil:           'Casado(a)',
+    origem:                 'Instagram',
+    objetivo:               'Emagrecer e reduzir gordura corporal | Ter mais energia e disposição no dia a dia',
+    prazo:                  'Entre 3 e 6 meses',
+    desafios:               'Falta de tempo, ansiedade, cansaço crônico',
+    peso_atual:             '92',
+    altura:                 '175',
+    percepcao_corpo:        'Gordura concentrada na barriga | Retenção de líquido ou inchaço',
+    variacao_peso:          'Aumentou',
+    rotina_trabalho:        'Sedentária (fico sentado(a) a maior parte do tempo)',
+    disposicao:             '2',
+    estresse:               '4',
+    saude_mental:           '2',
+    saude_fisica:           '3',
+    qualidade_vida:         '3',
+    horas_sono:             '6',
+    queixas_sono:           'Acordo cansado(a), mesmo tendo dormido | Tenho dificuldade para pegar no sono',
+    sonolencia:             'Com frequência',
+    pratica_exercicio:      'Não pratico',
+    tipo_exercicio:         '',
+    agua:                   'Entre 1 e 2 litros',
+    alcool:                 'Raramente (menos de 1x por semana)',
+    tabagismo:              'Nunca fumei',
+    padrao_alimentar:       'Como de tudo, sem restrição',
+    intolerancia:           'Nenhum desconforto',
+    comportamento_alimentar:'Come mais quando estou estressado(a) ou ansioso(a) | Como grandes volumes de uma vez',
+    sint_digestivos:        'Gases excessivos | Barriga muito inchada',
+    sint_gerais:            'Cansaço, dor de cabeça frequente, pressão alta',
+    sint_emocionais:        'Ansiedade, irritabilidade, baixa autoestima',
+    diag_metab:             'Pré-diabetes (glicemia alterada)',
+    diag_cardio:            '',
+    diag_psiq:              'Ansiedade',
     medicamentos:           'Nenhum',
     suplementos:            'Vitamina D ocasional',
-    pratica_exercicio:      'Não',
-    tipo_exercicio:         '',
-    horas_sono:             '6',
-    agua:                   '1.5L',
-    peso_atual:             '92kg',
-    altura:                 '1.75m',
-    comportamento_alimentar:'Come rápido, muita comida processada',
-    intolerancia:           'Nenhuma conhecida',
-    observacoes_finais:     'Quer melhorar disposição e perder 15kg',
-    tem_exames:         'Não tenho exames recentes',
+    phq_1:                  '2 - Mais da metade dos dias',
+    gad_1:                  '3 - Quase todos os dias',
+    tem_exames:             'Não tenho exames recentes',
+    observacoes_finais:     'Quero perder 15kg e ter mais disposição para trabalhar',
   };
 
   Logger.log('🚀 === INICIANDO TESTE COMPLETO ===');
@@ -743,7 +797,7 @@ function cadastrarNoFeegow(dados) {
     cpf:           (dados.cpf || '').replace(/\D/g, ''),
     data_nascimento: formatarDataFeegow(dados.data_nascimento),
     genero:        dados.sexo === 'Masculino' ? 'M' : 'F',
-    celular1:      (dados.celular || '').replace(/\D/g, ''),
+    celular1:      (dados.whatsapp || '').replace(/\D/g, ''),
     email1:        dados.email || '',
     cep:           (dados.cep || '').replace(/\D/g, ''),
     endereco:      dados.endereco || '',
