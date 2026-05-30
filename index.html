@@ -6,7 +6,7 @@
 <title>Anamnese – Clínica NEXUS</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {hh
+  :root {hhh
     --navy:   #0D1F3C;h
     --teal:   #1A7A6E;
     --teal2:  #24A695;
@@ -2309,42 +2309,56 @@
   clearSubmitFeedback();
   const data = collectData();
 
-  try {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = SCRIPT_URL;
-    form.target = 'nexus_hidden';
-    form.style.display = 'none';
+  // Salva backup no localStorage antes de enviar
+  const BACKUP_KEY = 'nexus_pending_submission';
+  try { localStorage.setItem(BACKUP_KEY, JSON.stringify({data, ts: Date.now()})); } catch(e) {}
 
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'payload';
-    input.value = JSON.stringify(data);
-    form.appendChild(input);
+  const MAX_TENTATIVAS = 3;
+  let tentativa = 0;
+  let sucesso = false;
+  let ultimoErro = '';
 
-    const iframe = document.createElement('iframe');
-    iframe.name = 'nexus_hidden';
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    document.body.appendChild(form);
-    form.submit();
+  while (tentativa < MAX_TENTATIVAS && !sucesso) {
+    tentativa++;
+    try {
+      const resp = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(25000)
+      });
+      if (resp.ok) {
+        let json = {};
+        try { json = await resp.json(); } catch(e) {}
+        if (json.success !== false) {
+          sucesso = true;
+        } else {
+          ultimoErro = json.error || 'Servidor retornou erro';
+        }
+      } else {
+        ultimoErro = 'HTTP ' + resp.status;
+      }
+    } catch (err) {
+      ultimoErro = err.name === 'TimeoutError' ? 'Tempo esgotado' : err.message;
+      if (tentativa < MAX_TENTATIVAS) await new Promise(r => setTimeout(r, 2000));
+    }
+  }
 
-    await new Promise(r => setTimeout(r, 3000));
+  isSubmitting = false;
+  setSubmitState(false);
 
+  if (sucesso) {
+    try { localStorage.removeItem(BACKUP_KEY); } catch(e) {}
     localStorage.removeItem(STORAGE_KEY);
-    document.querySelectorAll('.section')
-      .forEach(s => s.classList.remove('active'));
-    document.getElementById('successScreen')
-      .classList.add('show');
+    document.getElementById('section-' + currentSection)?.classList?.remove('active');
+    document.getElementById('section-success')?.classList?.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-
-  } catch(err) {
+  } else {
     showSubmitFeedback(
-      'Não foi possível enviar. Verifique sua conexão.'
+      '⚠️ Não conseguimos enviar sua anamnese (tentativas: ' + tentativa + '). Erro: ' + ultimoErro +
+      '. Seus dados foram salvos localmente. Tente novamente ou ligue: (83) 9 9858-5691',
+      'error'
     );
-  } finally {
-    isSubmitting = false;
-    setSubmitState(false);
   }
 }
 
