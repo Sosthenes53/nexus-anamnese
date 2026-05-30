@@ -2353,7 +2353,7 @@
     const activeEl = document.querySelector('.section.active');
     if (activeEl) activeEl.classList.remove('active');
     const successScreen = document.getElementById('successScreen');
-    if (successScreen) successScreen.style.display = 'flex';
+    if (successScreen) successScreen.classList.add('show');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } else {
     showSubmitFeedback(
