@@ -294,6 +294,7 @@ function gerarPDFRequisicao(dados) {
       'Hemograma Completo',
       'Ferritina',
       'Vitamina D (25-OH)',
+      'Vitamina B12',
       'Cortisol Matinal',
       'Perfil Lipídico Completo',
       'TGO + TGP',
@@ -308,6 +309,7 @@ function gerarPDFRequisicao(dados) {
       'Hemograma Completo',
       'Ferritina',
       'Vitamina D (25-OH)',
+      'Vitamina B12',
       'Cortisol Matinal',
       'Perfil Lipídico Completo',
       'TGO + TGP',
@@ -357,7 +359,7 @@ function gerarPDFRequisicao(dados) {
 
   body.appendHorizontalRule();
 
-  var tr = body.appendParagraph('Painel Metabólico NEXUS — Bloqueios ao Emagrecimento');
+  var tr = body.appendParagraph('Painel de Mapeamento Metabólico');
   tr.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
   tr.getChild(0).asText().setFontSize(13).setBold(true).setForegroundColor('#0B1F3A');
 
@@ -374,14 +376,13 @@ function gerarPDFRequisicao(dados) {
   var just =
     'Solicitação de mapeamento metabólico direcionado à identificação de resistência ' +
     'insulínica, disfunção tireoidiana, hipovitaminoses, sobrecarga hepática e ' +
-    'desequilíbrio hormonal — condições de alta prevalência nessa população e com ' +
-    'impacto direto na resposta ao emagrecimento.';
+    'desequilíbrio hormonal.';
 
   var pj = body.appendParagraph(just);
   pj.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
   pj.getChild(0).asText().setFontSize(10).setItalic(true);
 
-  var pc = body.appendParagraph('CID: E66.9');
+  var pc = body.appendParagraph('');
   pc.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
   pc.getChild(0).asText().setFontSize(10).setItalic(true);
 
